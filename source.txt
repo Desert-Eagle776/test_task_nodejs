@@ -1,0 +1,64 @@
+                                                   *** TRIGGERS ***
+1. TABLE 'receipts'
+1.A.
+Description: Consistent increase of the check number.
+***
+CREATE TRIGGER `increment_numbers` BEFORE INSERT ON `receipts`
+ FOR EACH ROW BEGIN
+ SET NEW.number = (SELECT MAX(number) + 1 FROM receipts);
+END
+1.B.
+Description: Changing the value from null to 1 and the increment operation with this value.
+***
+CREATE TRIGGER `update_number_on_1` BEFORE INSERT ON `receipts`
+ FOR EACH ROW BEGIN
+  IF NEW.number IS NULL THEN
+  	SET NEW.number = 0;
+   SET NEW.number = (SELECT MAX(NEW.number)  + 1);
+  END IF;
+END
+1.C.
+Description: Prohibition on transactions with a closed check.
+***
+CREATE TRIGGER `prohibition_update` BEFORE UPDATE ON `receipts`
+ FOR EACH ROW BEGIN
+    DECLARE check_date DATE;
+    SELECT date INTO check_date FROM receipts WHERE id = NEW.id;
+    IF check_date IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Оновлення заборонено. Чек закритий.';
+    END IF;
+END
+/////////////////////////////////////////////////////////////////////////////////////////////
+2. TABLE 'products_in_receipts'
+Description: Prohibition on transactions with a closed check.
+2.A.
+CREATE TRIGGER `prevent_delete` BEFORE DELETE ON `products_in_receipts`
+ FOR EACH ROW BEGIN
+    DECLARE check_date DATE;
+    SELECT date INTO check_date FROM receipts WHERE id = OLD.receipt_id;
+    IF check_date THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Видалення товарів заборонено. Чек закрито.';
+    END IF;
+END
+2.B.
+CREATE TRIGGER `prevent_insert` BEFORE INSERT ON `products_in_receipts`
+ FOR EACH ROW BEGIN
+     DECLARE check_date DATE;
+     SELECT date INTO check_date FROM receipts WHERE id = NEW.receipt_id;
+     IF check_date IS NOT NULL THEN
+         SIGNAL SQLSTATE '45000'
+         SET MESSAGE_TEXT = 'Додавання товарів заборонено. Чек закрито.';
+     END IF;
+END
+2.C.
+CREATE TRIGGER `prevent_update` BEFORE UPDATE ON `products_in_receipts`
+ FOR EACH ROW BEGIN
+    DECLARE check_date DATE;
+    SELECT date INTO check_date FROM receipts WHERE id = NEW.receipt_id;
+    IF check_date IS NOT NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Оновлення товарів заборонено. Чек закритий.';
+    END IF;
+END
